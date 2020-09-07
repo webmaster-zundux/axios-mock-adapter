@@ -3,7 +3,7 @@ var expect = require("chai").expect;
 
 var MockAdapter = require("../src");
 
-describe("networkError spec", function () {
+describe("requestAborted spec", function () {
   var instance;
   var mock;
 
@@ -12,8 +12,12 @@ describe("networkError spec", function () {
     mock = new MockAdapter(instance);
   });
 
-  it("mocks networkErrors", function () {
-    mock.onGet("/foo").networkError();
+  afterEach(function () {
+    mock.restore();
+  });
+
+  it("mocks requestAborted response", function () {
+    mock.onGet("/foo").abortRequest();
 
     return instance.get("/foo").then(
       function () {
@@ -21,15 +25,15 @@ describe("networkError spec", function () {
       },
       function (error) {
         expect(error.config).to.exist;
-        expect(error.response).to.not.exist;
-        expect(error.message).to.equal("Network Error");
+        expect(error.code).to.equal("ECONNABORTED");
+        expect(error.message).to.equal("Request aborted");
         expect(error.isAxiosError).to.be.true;
       }
     );
   });
 
-  it("can mock a network error only once", function () {
-    mock.onGet("/foo").networkErrorOnce().onGet("/foo").reply(200);
+  it("can abort a request only once", function () {
+    mock.onGet("/foo").abortRequestOnce().onGet("/foo").reply(200);
 
     return instance
       .get("/foo")

@@ -1,20 +1,45 @@
-'use strict';
+"use strict";
 
-var utils = require('./utils');
+var utils = require("./utils");
+
+function transformRequest(data) {
+  if (
+    utils.isArrayBuffer(data) ||
+    utils.isBuffer(data) ||
+    utils.isStream(data)
+  ) {
+    return data;
+  }
+
+  // Object and Array: returns a deep copy
+  if (utils.isObjectOrArray(data)) {
+    return JSON.parse(JSON.stringify(data));
+  }
+
+  // for primitives like string, undefined, null, number
+  return data;
+}
 
 function makeResponse(result, config) {
   return {
     status: result[0],
-    data: utils.isSimpleObject(result[1]) ? JSON.parse(JSON.stringify(result[1])) : result[1],
+    data: transformRequest(result[1]),
     headers: result[2],
-    config: config
+    config: config,
+    request: {
+      responseUrl: config.url,
+    },
   };
 }
 
 function handleRequest(mockAdapter, resolve, reject, config) {
-  var url = config.url;
-  if (config.baseURL && config.url.substr(0, config.baseURL.length) === config.baseURL) {
-    url = config.url.slice(config.baseURL ? config.baseURL.length : 0);
+  var url = config.url || "";
+  // TODO we're not hitting this `if` in any of the tests, investigate
+  if (
+    config.baseURL &&
+    url.substr(0, config.baseURL.length) === config.baseURL
+  ) {
+    url = url.slice(config.baseURL.length);
   }
 
   delete config.adapter;
@@ -37,10 +62,8 @@ function handleRequest(mockAdapter, resolve, reject, config) {
 
     if (handler.length === 2) {
       // passThrough handler
-      // tell axios to use the original adapter instead of our mock, fixes #35
-      config.adapter = mockAdapter.originalAdapter;
-      mockAdapter.axiosInstance.request(config).then(resolve, reject);
-    } else if (typeof handler[3] !== 'function') {
+      mockAdapter.originalAdapter(config).then(resolve, reject);
+    } else if (typeof handler[3] !== "function") {
       utils.settle(
         resolve,
         reject,
@@ -50,20 +73,38 @@ function handleRequest(mockAdapter, resolve, reject, config) {
     } else {
       var result = handler[3](config);
       // TODO throw a sane exception when return value is incorrect
-      if (typeof result.then !== 'function') {
-        utils.settle(resolve, reject, makeResponse(result, config), mockAdapter.delayResponse);
+      if (typeof result.then !== "function") {
+        utils.settle(
+          resolve,
+          reject,
+          makeResponse(result, config),
+          mockAdapter.delayResponse
+        );
       } else {
         result.then(
-          function(result) {
+          function (result) {
             if (result.config && result.status) {
-              utils.settle(resolve, reject, makeResponse([result.status, result.data, result.headers], result.config), 0);
+              utils.settle(
+                resolve,
+                reject,
+                makeResponse(
+                  [result.status, result.data, result.headers],
+                  result.config
+                ),
+                0
+              );
             } else {
-              utils.settle(resolve, reject, makeResponse(result, config), mockAdapter.delayResponse);
+              utils.settle(
+                resolve,
+                reject,
+                makeResponse(result, config),
+                mockAdapter.delayResponse
+              );
             }
           },
-          function(error) {
+          function (error) {
             if (mockAdapter.delayResponse > 0) {
-              setTimeout(function() {
+              setTimeout(function () {
                 reject(error);
               }, mockAdapter.delayResponse);
             } else {
@@ -75,15 +116,23 @@ function handleRequest(mockAdapter, resolve, reject, config) {
     }
   } else {
     // handler not found
-    utils.settle(
-      resolve,
-      reject,
-      {
-        status: 404,
-        config: config
-      },
-      mockAdapter.delayResponse
-    );
+    switch (mockAdapter.onNoMatch) {
+      case "passthrough":
+        mockAdapter.originalAdapter(config).then(resolve, reject);
+        break;
+      case "throwException":
+        throw utils.createCouldNotFindMockError(config);
+      default:
+        utils.settle(
+          resolve,
+          reject,
+          {
+            status: 404,
+            config: config,
+          },
+          mockAdapter.delayResponse
+        );
+    }
   }
 }
 

@@ -4,25 +4,31 @@ type CallbackResponseSpecFunc = (
   config: AxiosRequestConfig
 ) => any[] | Promise<any[]>;
 
-type ResponseSpecFunc = (
+type ResponseSpecFunc = <T = any>(
   statusOrCallback: number | CallbackResponseSpecFunc,
-  data?: any,
+  data?: T,
   headers?: any
 ) => MockAdapter;
 
-interface RequestHandler {
+export interface RequestHandler {
   reply: ResponseSpecFunc;
   replyOnce: ResponseSpecFunc;
-  timeoutOnce: ResponseSpecFunc;
-  networkErrorOnce: ResponseSpecFunc;
-
   passThrough(): MockAdapter;
+  abortRequest(): MockAdapter;
+  abortRequestOnce(): MockAdapter;
   networkError(): MockAdapter;
+  networkErrorOnce(): MockAdapter;
   timeout(): MockAdapter;
+  timeoutOnce(): MockAdapter;
 }
 
 interface MockAdapterOptions {
   delayResponse?: number;
+  onNoMatch?: 'passthrough';
+}
+
+interface AsymmetricMatcher {
+  asymmetricMatch: Function;
 }
 
 interface RequestDataMatcher {
@@ -36,10 +42,14 @@ interface HeadersMatcher {
   [header: string]: string;
 }
 
+type AsymmetricHeadersMatcher = AsymmetricMatcher | HeadersMatcher;
+
+type AsymmetricRequestDataMatcher = AsymmetricMatcher | RequestDataMatcher;
+
 type RequestMatcherFunc = (
   matcher?: string | RegExp,
-  body?: string | RequestDataMatcher,
-  headers?: HeadersMatcher
+  body?: string | AsymmetricRequestDataMatcher,
+  headers?: AsymmetricHeadersMatcher
 ) => RequestHandler;
 
 declare class MockAdapter {
@@ -47,6 +57,7 @@ declare class MockAdapter {
 
   adapter(): AxiosAdapter;
   reset(): void;
+  resetHandlers(): void;
   resetHistory(): void;
   restore(): void;
 
@@ -59,6 +70,7 @@ declare class MockAdapter {
   onDelete: RequestMatcherFunc;
   onPatch: RequestMatcherFunc;
   onList: RequestMatcherFunc;
+  onOptions: RequestMatcherFunc;
   onAny: RequestMatcherFunc;
 }
 

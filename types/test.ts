@@ -1,5 +1,5 @@
 import axios from 'axios';
-import MockAdapter from 'axios-mock-adapter';
+import MockAdapter, { RequestHandler } from 'axios-mock-adapter';
 
 const instance = axios.create();
 const mock = new MockAdapter(instance);
@@ -10,7 +10,8 @@ namespace AllowsConstructing {
 
 namespace AllowsConstructingWithOptions {
   new MockAdapter(instance, {
-    delayResponse: 2000
+    delayResponse: 2000,
+    onNoMatch: 'passthrough'
   });
 }
 
@@ -20,6 +21,14 @@ namespace ExposesAdapter {
 
 namespace SupportsReset {
   mock.reset();
+}
+
+namespace SupportsResetHandlers {
+  mock.resetHandlers();
+}
+
+namespace SupportsResetHistory {
+  mock.resetHistory();
 }
 
 namespace SupportsRestore {
@@ -87,6 +96,26 @@ namespace SupportsTimeout {
   mock.onGet().timeout();
 }
 
+namespace SupportsTimeoutOnce {
+  mock.onGet().timeoutOnce();
+}
+
+namespace SupportsAbortRequest {
+  mock.onGet().abortRequest();
+}
+
+namespace SupportsAbortRequestOnce {
+  mock.onGet().abortRequestOnce();
+}
+
+namespace SupportsNetworkError {
+  mock.onGet().networkError();
+}
+
+namespace SupportsNetworkErrorOnce {
+  mock.onGet().networkErrorOnce();
+}
+
 namespace AllowsFunctionReply {
   mock.onGet().reply(config => {
     return [200, { data: 'foo' }, { RequestedURL: config.url }];
@@ -103,14 +132,15 @@ namespace AllowsPromiseReply {
   });
 }
 
-namespace SupportsChanining {
+namespace SupportsChaining {
   mock
     .onGet('/users')
-    .reply(200, [
-      /* users */
-    ])
+    .reply(200, [])
     .onGet('/posts')
-    .reply(200, [
-      /* posts */
-    ]);
+    .reply(200, []);
+}
+
+namespace ExportsRequestHandlerInterface {
+  const handler: RequestHandler = mock.onAny();
+  handler.reply(200);
 }
